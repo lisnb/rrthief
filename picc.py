@@ -3,14 +3,14 @@
 # @Author: lisnb
 # @Date:   2014-09-02 13:08:57
 # @Last Modified by:   lisnb
-# @Last Modified time: 2014-09-14 13:55:23
+# @Last Modified time: 2014-09-14 23:03:20
 
 
 import requests
-import urllib
 from bs4 import BeautifulSoup
 import re
 import json
+import lab
 
 def checklogin(logininfo):
 	message = 'success'
@@ -31,63 +31,71 @@ def login():
 	if islogin:
 		return s,message
 	else:
-		return None,message 
+		return None,'login failed' 
 	
+def retrivepage():
+	page = 'http://photo.renren.com/photo/313565854/album/relatives'
+	session,loginmessage = login()
+	if session:
+		r = session.get(page)
+		if r.ok:
+			with open('./buffer/albums.html','wb') as f:
+				f.write(r.text.encode('utf-8'))
+		else:
+			print 'retrive page failed'
+	else:
+		print message
+
 
 def getfriendslist(friendid='282817208'):
 	session,loginmessage = login()
+	friends={}
 	if session:
-		getfriendlist_do = 'http://friend.renren.com/GetFriendList.do?id=%s'
-		friendlistinitialurl = getfriendlist_do%friendid
+		getfriendlist_do = 'http://friend.renren.com/GetFriendList.do?curpage=%s&id=%s'
+		friendlistinitialurl = getfriendlist_do%(0,friendid)
 		friendlistinitialpage = session.get(friendlistinitialurl)
 		if friendlistinitialpage.ok:
-			with open('./buffer/%s-friendlistinitialpage.html'%friendid,'wb') as f:
-				f.write(friendlistinitialpage.text.encode('utf-8'))
+			dom = BeautifulSoup(friendlistinitialpage.text.encode('utf-8'))
+			pagenumber = lab.extractfriendpagenumber(dom = dom)
+			lab.extractfriendlistpage(dom,friends)
+			for pn in range(1,pagenumber+1):
+				print 'page %s'%pn
+				pcontent = session.get(getfriendlist_do%(pn,friendid))
+				if pcontent.ok:
+					dom = BeautifulSoup(pcontent.text.encode('utf-8'))
+					lab.extractfriendlistpage(dom,friends)
+				else:
+					print 'friend list page %s get failed'%pn
 		else:
-			print 'fetch friendlistinitialpage failed'
+			print 'initial page of friend list get failed'
+
+		with open('./buffer/%s-friends.json'%friendid,'wb') as f:
+			f.write(json.dumps(friends))
 	else:
 		print 'get session failed'
-
 
 
 
 		
 
 
-
-
-
-
-
-
-def login_():
-	imgsrcre = re.compile(r'large:\'(.+?)\'')
-	s = requests.Session()
-	param = {"domain":"renren.com","email":"lisnb@sina.com","password":"5040595"}
-	headers ={"User-agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/37.0.2062.94 Safari/537.36"}
-	t = s.post("http://www.renren.com/PLogin.do",data=param,headers = headers,allow_redirects=True)
-	t = s.get('http://photo.renren.com/photo/313565854/album-437715180')
-	pageinfo = BeautifulSoup(t.text.encode('utf-8'))
-	anchors = pageinfo.find_all('a',class_='picture')
-
-
-	for anchor in anchors:
-		img = list(anchor.children)[1]
-		data_info = img['data-photo']
-		imgurl = imgsrcre.search(data_info).group(1)
-		imgfilename = './album-437715180/'+imgurl.split('/')[-1]
-		r = s.get(imgurl,stream=True)
+def retrievephoto(session,src,localpath=''):
+	if session:
+		r = session.get(src,stream = True)
 		if r.ok:
-			print 'downloading %s '%imgfilename
-			with open(imgfilename,'wb') as f :
+			with open(localpath,'wb') as f:
 				for chunk in r.iter_content(1024):
-					f.write(chunk)
+					if chunk:
+						f.write(chunk)
+					else:
+						break
 		else:
-			print imgfilename,'failed'
+			print '% :retrive failed'%src
 
 
 	
 
 
 if __name__ == '__main__':
-	getfriendslist()
+	# getfriendslist()
+	retrivepage()

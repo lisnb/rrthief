@@ -3,7 +3,7 @@
 # @Author: lisnb
 # @Date:   2014-09-02 13:08:57
 # @Last Modified by:   lisnb
-# @Last Modified time: 2014-09-14 13:38:29
+# @Last Modified time: 2014-09-14 13:55:23
 
 
 import requests
@@ -12,19 +12,55 @@ from bs4 import BeautifulSoup
 import re
 import json
 
-def login_():
-	s = requests.Session()
+def checklogin(logininfo):
+	message = 'success'
+	return True,message
+
+def login():
 	with open('./config','rb') as f:
 		 configs = f.read()
 	configs=json.loads(configs)
+
 	print configs['authinfo']
 	print configs['headers']
 
+	s = requests.Session()
+	logininfo = s.post('http://www.renren.com/PLogin.do',data = configs['authinfo'],headers=configs['headers'],allow_redirects=True)
+	islogin,message = checklogin(logininfo)
+
+	if islogin:
+		return s,message
+	else:
+		return None,message 
+	
+
+def getfriendslist(friendid='282817208'):
+	session,loginmessage = login()
+	if session:
+		getfriendlist_do = 'http://friend.renren.com/GetFriendList.do?id=%s'
+		friendlistinitialurl = getfriendlist_do%friendid
+		friendlistinitialpage = session.get(friendlistinitialurl)
+		if friendlistinitialpage.ok:
+			with open('./buffer/%s-friendlistinitialpage.html'%friendid,'wb') as f:
+				f.write(friendlistinitialpage.text.encode('utf-8'))
+		else:
+			print 'fetch friendlistinitialpage failed'
+	else:
+		print 'get session failed'
 
 
 
 
-def login():
+		
+
+
+
+
+
+
+
+
+def login_():
 	imgsrcre = re.compile(r'large:\'(.+?)\'')
 	s = requests.Session()
 	param = {"domain":"renren.com","email":"lisnb@sina.com","password":"5040595"}
@@ -54,4 +90,4 @@ def login():
 
 
 if __name__ == '__main__':
-	login_()
+	getfriendslist()
